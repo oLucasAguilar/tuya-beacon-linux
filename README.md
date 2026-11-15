@@ -15,6 +15,10 @@ lamp temp 80            # white, 0 warm .. 100 cold
 lamp color purple       # red orange yellow green cyan blue purple pink, or a hue 0-359
 ```
 
+Or from the top bar, on GNOME:
+
+<img alt="Top-bar menu with a lamp switch, brightness and white sliders, and eight colour buttons" src="docs/menu.png" width="420">
+
 ## The byte nobody documents
 
 - The advertisement **must start with the Flags element `02 01 06`**.

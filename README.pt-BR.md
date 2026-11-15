@@ -15,6 +15,10 @@ lamp temp 80            # branco, 0 quente .. 100 frio
 lamp color purple       # red orange yellow green cyan blue purple pink, ou matiz 0-359
 ```
 
+Ou pela barra do topo, no GNOME:
+
+<img alt="Menu da barra do topo com interruptor da lâmpada, sliders de brilho e de branco, e oito botões de cor" src="docs/menu.png" width="420">
+
 ## O byte que ninguém documenta
 
 - O anúncio **precisa começar com o elemento Flags `02 01 06`**.
