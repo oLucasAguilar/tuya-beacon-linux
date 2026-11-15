@@ -62,6 +62,18 @@ class LampCommandTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             lamp.payloads("dance", None, {})
 
+    def test_each_lamp_keeps_its_own_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            os.environ["TUYA_BEACON_HOME"] = folder
+            try:
+                for name, node in (("lamp", "0002"), ("kitchen", "0003")):
+                    lamp.write_json(lamp.lamp_file("keys", name), {
+                        "localkey": LOCAL_KEY.decode(), "beaconkey": BEACON_KEY.hex(), "dst": node})
+                self.assertEqual(lamp.load_keys()[2], bytes.fromhex("0002"))
+                self.assertEqual(lamp.load_keys("kitchen")[2], bytes.fromhex("0003"))
+            finally:
+                del os.environ["TUYA_BEACON_HOME"]
+
     def test_sequence_keeps_increasing(self):
         with tempfile.TemporaryDirectory() as folder:
             os.environ["TUYA_BEACON_HOME"] = folder

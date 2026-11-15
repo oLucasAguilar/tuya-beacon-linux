@@ -31,7 +31,8 @@ More in [docs/protocol.md](docs/protocol.md).
 
 - It works in the Tuya or Smart Life app over Bluetooth only (paired without Wi-Fi).
 - `capture` (first install step) hears its OFF and ON. If it hears nothing, see [docs/alternatives.md](docs/alternatives.md).
-- Tested on **one** lamp, Ubuntu 24.04, GNOME 46: [docs/limits.md](docs/limits.md).
+- **One lamp** per PC for now ([more lamps](https://github.com/oLucasAguilar/tuya-beacon-linux/issues/1)).
+- Tested on one lamp, Ubuntu 24.04, GNOME 46: [docs/limits.md](docs/limits.md).
 
 ## Install
 

@@ -9,7 +9,7 @@ import {Slider} from 'resource:///org/gnome/shell/ui/slider.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const LAMP = GLib.find_program_in_path('lamp') ?? GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'lamp']);
-const STATE_FILE = GLib.build_filenamev([GLib.get_user_config_dir(), 'tuya-beacon-linux', 'state.json']);
+const STATE_FILE = GLib.build_filenamev([GLib.get_user_config_dir(), 'tuya-beacon-linux', 'lamps', 'lamp', 'state.json']);
 const DEBOUNCE_MS = 300;
 
 const PRESETS = [

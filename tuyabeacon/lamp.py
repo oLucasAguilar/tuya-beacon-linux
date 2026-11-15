@@ -3,6 +3,11 @@
 The DP map below is the one tested on a Tuya "dj" light (product heflj0rj).
 Other models may use other DP numbers: run `tuya-beacon sniff` while using the
 phone app to see what it sends, and change DP_* here.
+
+One lamp is supported today, named "lamp". Everything that belongs to a lamp
+(keys, capture, state) lives in lamps/<name>/ and every function takes the name,
+so a second lamp needs only the interface (CLI, lampd, menu) to pass another one.
+The sequence counter is shared: the lamp only checks that it grows per source.
 """
 import json
 import os
@@ -22,6 +27,12 @@ SRC = bytes.fromhex("8001")   # our own source address, separate from the phone 
 COLOURS = {"red": 0, "orange": 30, "yellow": 60, "green": 120,
            "cyan": 180, "blue": 240, "purple": 270, "pink": 330}
 USAGE = "on | off | bright 1-100 | temp 0-100 | white [1-100] | color <name|hue 0-359>"
+DEFAULT_LAMP = "lamp"
+
+
+def lamp_file(kind, name=DEFAULT_LAMP):
+    """Config path of one lamp's file: keys, capture, localkey or state."""
+    return f"lamps/{name}/{kind}.json"
 
 
 def config_dir() -> Path:
@@ -42,20 +53,20 @@ def read_json(name, default=None):
 
 def write_json(name, data, private=False):
     """Write a config file, owned by the real user even when run with sudo."""
-    folder = config_dir()
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / name
+    root = config_dir()
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=1))
     if private:
         path.chmod(0o600)
     if os.geteuid() == 0 and os.environ.get("SUDO_UID"):
         uid, gid = int(os.environ["SUDO_UID"]), int(os.environ["SUDO_GID"])
-        os.chown(folder, uid, gid)
-        os.chown(path, uid, gid)
+        for item in [path, *path.relative_to(root).parents]:
+            os.chown(root / item, uid, gid)
 
 
-def load_keys():
-    keys = read_json("keys.json")
+def load_keys(name=DEFAULT_LAMP):
+    keys = read_json(lamp_file("keys", name))
     if not keys:
         raise SystemExit("no keys yet: run `tuya-beacon capture` and `tuya-beacon derive` first")
     return (p2.key_from_string(keys["localkey"]), bytes.fromhex(keys["beaconkey"]),
@@ -107,13 +118,13 @@ def payloads(cmd, arg, state):
     raise ValueError(f"unknown command {cmd!r}. Use: {USAGE}")
 
 
-def run(cmd, arg=None, radio=None):
-    local_key, beacon_key, dst = load_keys()
-    state = read_json("state.json", {"on": True, "mode": "white", "bright": 100, "hue": 0, "temp": 50})
+def run(cmd, arg=None, radio=None, name=DEFAULT_LAMP):
+    local_key, beacon_key, dst = load_keys(name)
+    state = read_json(lamp_file("state", name), {"on": True, "mode": "white", "bright": 100, "hue": 0, "temp": 50})
     batch = payloads(cmd, arg, state)
     seq = next_seq(len(batch))
     ads = [p2.advertisement(p2.build_frame(SRC, dst, seq + i, p, local_key, beacon_key))
            for i, p in enumerate(batch)]
     (radio or Radio(os.environ.get("TUYA_BEACON_ADAPTER", "hci0"))).advertise(ads)
-    write_json("state.json", state)
+    write_json(lamp_file("state", name), state)
     return state

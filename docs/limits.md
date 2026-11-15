@@ -22,6 +22,8 @@
 
 - **Bluetooth range.** Same room worked; through walls was not tested.
 - **One-way.** The lamp never answers. The menu shows the last command sent, not the real state: the wall switch or the app can change the lamp without the menu knowing.
+- **One lamp.** One lamp per setup for now.
+    - Each lamp's files already live apart (`lamps/<name>/`), so a second one is interface work: [issue #1](https://github.com/oLucasAguilar/tuya-beacon-linux/issues/1).
 - **Root once.** `install.sh` gives `CAP_NET_RAW` and `CAP_NET_ADMIN` to the `lampd` service only. `lamp` and the menu run as you.
 - **Re-pairing changes the key.** Pair the lamp again in the app, and repeat `capture` and `login`.
 - **The cloud, once.** `login` reads the lamp's key from your app account. After that, everything is local.
@@ -33,6 +35,6 @@
 
 ## Not tested
 
-- Several lamps, or groups. This code sends to one node.
+- Group addresses (one command to several lamps at once): the protocol has them, this code does not send them.
 - Other Bluetooth adapters, other distributions, X11.
 - Other software advertising over BlueZ at the same time.
