@@ -2,8 +2,6 @@
 
 **Control a Bluetooth-only Tuya lamp from your Linux PC. No phone, no gateway, no cloud.**
 
-[Leia em português](README.pt-BR.md)
-
 Many cheap Tuya / Smart Life bulbs have no Wi-Fi. They speak *Beacon Mesh*: one-way Bluetooth advertisements. Tuya says you need a gateway. Your laptop's Bluetooth can send the same advertisements.
 
 <img alt="lamp on, lamp color purple, lamp bright 30, lamp white 80 in a terminal, each answered with ok" src="docs/demo.gif">
@@ -18,14 +16,6 @@ lamp color purple       # red orange yellow green cyan blue purple pink, or a hu
 Or from the top bar, on GNOME:
 
 <img alt="Top-bar menu with a lamp switch, brightness and white sliders, and eight colour buttons" src="docs/menu.png" width="420">
-
-## The byte nobody documents
-
-- The advertisement **must start with the Flags element `02 01 06`**.
-- Without it the lamp ignores commands that are otherwise perfect, even byte-identical to the phone's.
-- The most complete public write-up of the protocol leaves it out.
-
-More in [docs/protocol.md](docs/protocol.md).
 
 ## Does it fit my lamp?
 
@@ -61,7 +51,16 @@ git clone https://github.com/oLucasAguilar/tuya-beacon-linux && cd tuya-beacon-l
     ```bash
     bin/tuya-beacon login
     ```
-    Type your user code (app: Me > Settings > Account and Security), then scan the QR it shows with the same app. [Why a QR code?](#why-a-qr-code)
+    Type your user code (app: Me > Settings > Account and Security), then scan the QR it shows with the same app.
+
+    <details><summary>Why a QR code?</summary>
+
+    - Commands are encrypted with your lamp's key, which never goes over the air.
+    - `login` reads it once from your account in the app.
+    - The app may ask you to confirm "Home Assistant". [Why](docs/limits.md#by-design).
+    - After setup, nothing talks to the cloud.
+
+    </details>
 
 3. **Test it.**
     ```bash
@@ -77,13 +76,6 @@ git clone https://github.com/oLucasAguilar/tuya-beacon-linux && cd tuya-beacon-l
     From now on, `lamp on` works without `sudo`. The menu appears after you log out and back in. How it stays safe: [docs/limits.md](docs/limits.md#by-design).
 
 QR login not working? Get the key on Tuya's developer website: [docs/local-key.md](docs/local-key.md).
-
-### Why a QR code
-
-- Commands are encrypted with your lamp's key, which never goes over the air.
-- `login` reads it once from your account in the app.
-- The app may ask you to confirm "Home Assistant". [Why](docs/limits.md#by-design).
-- After setup, nothing talks to the cloud.
 
 **Prefer Claude to do it?** Paste into Claude Code:
 
@@ -110,6 +102,8 @@ Radio("hci0").advertise([p2.advertisement(frame)])   # needs root or CAP_NET_RAW
 - [`tuyabeacon/radio.py`](tuyabeacon/radio.py): raw HCI advertising and scanning
 - [`tuyabeacon/lamp.py`](tuyabeacon/lamp.py): the DP map and state behind `lamp`
 - Tests: `python3 -m unittest discover tests`
+
+The detail that stops most attempts: the advertisement must start with the Flags element `02 01 06`, or the lamp ignores it. Details in [docs/protocol.md](docs/protocol.md).
 
 ## Credits
 
