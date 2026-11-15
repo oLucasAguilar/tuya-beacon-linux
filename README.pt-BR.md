@@ -69,11 +69,12 @@ git clone https://github.com/oLucasAguilar/tuya-beacon-linux && cd tuya-beacon-l
     ```
     A lâmpada apaga. Pronto, o PC fala com ela.
 
-4. **Instale.**
+4. **Instale.** Escolha um:
     ```bash
-    sudo ./install.sh --gnome
+    sudo ./install.sh --gnome     # comando `lamp` + menu na barra do topo (GNOME)
+    sudo ./install.sh             # só o comando `lamp`, em qualquer desktop
     ```
-    Daqui em diante, `lamp on` funciona sem `sudo`, e o menu da barra do topo aparece depois que você sai e entra de novo na sessão. Sem `--gnome`, fica só o comando `lamp`.
+    Daqui em diante, `lamp on` funciona sem `sudo`. O menu aparece depois que você sai e entra de novo na sessão.
 
 O login por QR não funcionou? Pegue a chave no site de desenvolvedor da Tuya: [docs/local-key.md](docs/local-key.md) (em inglês).
 
