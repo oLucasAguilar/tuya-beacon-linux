@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Daemon: one command per connection on a unix socket, sent to the lamp.
 
-Runs as a systemd service with CAP_NET_RAW + CAP_NET_ADMIN only, so the
-`lamp` client and the GNOME extension never need sudo.
+Runs as a systemd service with CAP_NET_RAW only, so the `lamp` client and
+the GNOME extension never need sudo. No input may take the daemon down.
 """
 import os
 import socket
@@ -22,7 +22,7 @@ def handle(line):
     try:
         lamp.run(parts[0], parts[1] if len(parts) > 1 else None)
         return "ok " + " ".join(parts[:2])
-    except (ValueError, SystemExit, OSError, RuntimeError) as error:
+    except (Exception, SystemExit) as error:   # one bad command must not stop the daemon
         return f"error: {error}"
 
 
@@ -37,7 +37,12 @@ def main():
     while True:
         conn, _ = server.accept()
         with conn:
-            reply = handle(conn.recv(256).decode("utf-8", "replace"))
+            conn.settimeout(5)   # a client that never sends must not block the others
+            try:
+                request = conn.recv(256).decode("utf-8", "replace")
+            except OSError:
+                continue
+            reply = handle(request)
             print(reply, flush=True)
             try:
                 conn.sendall((reply + "\n").encode())

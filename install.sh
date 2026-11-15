@@ -15,6 +15,14 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 ROOT=/opt/tuya-beacon-linux
 USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
 
+# A symlink in the clone would make /opt point back at files the user can edit.
+LINKS="$(find "$SRC/bin" "$SRC/tuyabeacon" "$SRC/gnome" -type l)"
+if [ -n "$LINKS" ]; then
+    echo "Refusing to install: symlinks in the source, which lampd would run with privilege:" >&2
+    echo "$LINKS" >&2
+    exit 1
+fi
+
 if [ -d "$ROOT" ]; then
     rm -r --one-file-system "$ROOT"
 fi

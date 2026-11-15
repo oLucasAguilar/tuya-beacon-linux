@@ -25,19 +25,22 @@
 - **One lamp.** One lamp per setup for now.
     - Each lamp's files already live apart (`lamps/<name>/`), so a second one is interface work: [issue #1](https://github.com/oLucasAguilar/tuya-beacon-linux/issues/1).
 - **Root once, and as little as possible.**
-    - `install.sh` copies the code to `/opt/tuya-beacon-linux`, owned by root, and runs `lampd` from there with `CAP_NET_RAW` only: enough for raw Bluetooth advertising, nothing over the rest of the network.
+    - `install.sh` copies the code to `/opt/tuya-beacon-linux`, owned by root, and runs `lampd` from there with `CAP_NET_RAW` only, limited to the local socket and Bluetooth: it cannot open network sockets.
+    - Setup commands run with `sudo` read and write your config as you, so a symlink planted there cannot reach system files.
     - `lamp` and the menu run as you, with no privilege.
     - Changed the code (say, the DP numbers)? Run `sudo ./install.sh` again for `lampd` to use it.
 - **Re-pairing changes the key.** Pair the lamp again in the app, and repeat `capture` and `login`.
 - **The cloud, once.** `login` reads the lamp's key from your app account. After that, everything is local.
 - **"Home Assistant" on the phone.** Tuya only offers QR login to registered apps.
     - `login` borrows the registration of Home Assistant's Tuya integration, like other community tools do.
-    - It only reads the key, and saves no login on your PC.
+    - The login could control your account, like Home Assistant does. This code only reads the key with it, and saves no login on your PC.
     - If Tuya ever blocks it, the website route still works: [local-key.md](local-key.md).
+- **Anyone in radio range can replay.** Commands are encrypted but not signed: someone who records one can send it again later (with a new sequence number). They cannot make new commands or get the key. The phone app has the same limit.
+- **65535 commands per setup.** The frame carries a 2-byte sequence number. When it runs out, commands fail with a clear error. What resets it on the lamp's side was not tested; pairing the lamp again and repeating `capture` and `login` is the likely way.
 - **QR login was tested on one account.** Another tool (tuya-local-key) says Bluetooth-only devices come back without a key. Ours came back with it. If yours does not, use the website route.
 
 ## Not tested
 
 - Group addresses (one command to several lamps at once): the protocol has them, this code does not send them.
-- Other Bluetooth adapters, other distributions, X11.
+- Other Bluetooth adapters, other distributions, X11. Another adapter: `sudo env TUYA_BEACON_ADAPTER=hci1 bin/tuya-beacon ...`, and for `lampd` add `Environment=TUYA_BEACON_ADAPTER=hci1` to its service.
 - Other software advertising over BlueZ at the same time.

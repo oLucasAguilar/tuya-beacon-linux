@@ -1,9 +1,10 @@
 """Raw HCI access to the Bluetooth adapter: advertise one frame, or scan.
 
-Needs CAP_NET_RAW + CAP_NET_ADMIN (root, or the lampd service).
+Needs CAP_NET_RAW (root, or the lampd service).
 The Radio class is adapted from https://github.com/MadeinTaly/beacon-cooked
 (MIT License, Copyright (c) 2026 MadeinTaly). See NOTICE.md.
 """
+import os
 import re
 import secrets
 import socket
@@ -12,7 +13,8 @@ import time
 
 
 class Radio:
-    def __init__(self, adapter="hci0"):
+    def __init__(self, adapter=None):
+        adapter = adapter or os.environ.get("TUYA_BEACON_ADAPTER", "hci0")
         if not re.fullmatch(r"hci\d+", adapter):
             raise ValueError("invalid adapter name: " + adapter)
         self.adapter = adapter
@@ -108,10 +110,10 @@ class Radio:
                     break
                 if len(pkt) < 6 or pkt[:2] != b"\x04\x3e":
                     continue
-                if pkt[3] == 0x02:      # legacy advertising report
+                if pkt[3] == 0x02 and len(pkt) > 13:      # legacy advertising report
                     size = pkt[13]
                     yield pkt[14:14 + size]
-                elif pkt[3] == 0x0D:    # extended advertising report
+                elif pkt[3] == 0x0D and len(pkt) > 28:    # extended advertising report
                     size = pkt[28]
                     yield pkt[29:29 + size]
         finally:

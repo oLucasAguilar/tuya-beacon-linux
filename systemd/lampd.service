@@ -11,6 +11,9 @@ Group=@USER@
 AmbientCapabilities=CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_RAW
 NoNewPrivileges=yes
+# CAP_NET_RAW alone would also allow raw network sockets; only the local socket and
+# Bluetooth are allowed (tested: AF_PACKET is refused, the lamp still obeys).
+RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH
 ProtectSystem=full
 PrivateTmp=yes
 RuntimeDirectory=lampd

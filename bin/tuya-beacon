@@ -73,7 +73,8 @@ def derive(local_key_text=None):
 
 
 SDK_VENV = Path.home() / ".cache" / "tuya-beacon-linux" / "venv"
-SDK_PACKAGES = ["tuya-device-sharing-sdk", "cryptography", "qrcode"]   # the SDK does not declare cryptography
+# The SDK pinned to the version tested; the SDK does not declare cryptography itself.
+SDK_PACKAGES = ["tuya-device-sharing-sdk==0.2.15", "cryptography>=46", "qrcode>=8"]
 
 
 def ensure_sdk(args):
@@ -118,7 +119,10 @@ def login(user_code):
     if not user_code:
         print("This reads the lamp's key from your account in the app where the lamp is paired:")
         print("the Tuya app or the Smart Life app. In that app: Me > Settings > Account and Security > User Code.")
-        user_code = input("User code: ")
+        try:
+            user_code = input("User code: ")
+        except EOFError:
+            sys.exit("No user code given.")
     keys = cloud.account_keys(user_code.strip())
     if not keys:
         sys.exit("Tuya returned no device key for this account. Try the website route: docs/local-key.md")
@@ -134,7 +138,15 @@ def login(user_code):
                  "Was the lamp paired again? Redo: sudo tuya-beacon capture, then login.")
     for number, (name, category, _) in enumerate(keys, 1):
         print(f"  {number}. {name} ({category})")
-    choice = 1 if len(keys) == 1 else int(input("Which one is the lamp? "))
+    choice = 1
+    if len(keys) > 1:
+        try:
+            answer = input(f"Which one is the lamp? (1-{len(keys)}) ").strip()
+        except EOFError:
+            answer = ""
+        if not answer.isdigit() or not 1 <= int(answer) <= len(keys):
+            sys.exit("No lamp chosen. Easier: run `sudo bin/tuya-beacon capture` first, then login finds it.")
+        choice = int(answer)
     lamp.write_json(lamp.lamp_file("localkey"), {"localkey": keys[choice - 1][2]}, private=True)
     me = Path(__file__).resolve()
     print(f"Key saved. Next: sudo {me} capture, then {me} derive")
@@ -166,6 +178,8 @@ def main(args):
     elif cmd == "derive":
         derive(rest[0] if rest else None)
     elif cmd == "login":
+        if os.geteuid() == 0:   # before ensure_sdk: never run the user's venv as root
+            sys.exit("Run login without sudo.")
         ensure_sdk(args)
         login(rest[0] if rest else None)
     elif cmd == "sniff":

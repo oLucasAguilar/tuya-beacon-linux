@@ -9,6 +9,7 @@ One lamp is supported today, named "lamp". Everything that belongs to a lamp
 so a second lamp needs only the interface (CLI, lampd, menu) to pass another one.
 The sequence counter is shared: the lamp only checks that it grows per source.
 """
+import contextlib
 import json
 import os
 import pwd
@@ -44,25 +45,53 @@ def config_dir() -> Path:
     return home / ".config" / "tuya-beacon-linux"
 
 
-def read_json(name, default=None):
+@contextlib.contextmanager
+def as_real_user():
+    """Under sudo, touch the user's config as the user, never as root.
+
+    The config lives in the user's home, so anything there may be a symlink the
+    user (or malware running as the user) planted. As the user, a symlink can only
+    reach what the user could already write.
+    """
+    if os.geteuid() != 0 or not os.environ.get("SUDO_UID"):
+        yield
+        return
+    uid, gid = int(os.environ["SUDO_UID"]), int(os.environ["SUDO_GID"])
+    groups = os.getgroups()
+    os.setgroups(os.getgrouplist(os.environ["SUDO_USER"], gid))
+    os.setegid(gid)
+    os.seteuid(uid)
     try:
-        return json.loads((config_dir() / name).read_text())
+        yield
+    finally:
+        os.seteuid(0)
+        os.setegid(0)
+        os.setgroups(groups)
+
+
+def read_json(name, default=None):
+    path = config_dir() / name   # resolved as root: as the user, HOME would be /root's
+    try:
+        with as_real_user():
+            data = json.loads(path.read_text())
+        return data if isinstance(data, dict) else default
     except (OSError, ValueError):
         return default
 
 
 def write_json(name, data, private=False):
-    """Write a config file, owned by the real user even when run with sudo."""
-    root = config_dir()
-    path = root / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=1))
-    if private:
-        path.chmod(0o600)
-    if os.geteuid() == 0 and os.environ.get("SUDO_UID"):
-        uid, gid = int(os.environ["SUDO_UID"]), int(os.environ["SUDO_GID"])
-        for item in [path, *path.relative_to(root).parents]:
-            os.chown(root / item, uid, gid)
+    """Write a config file atomically, with its final mode from the start."""
+    path = config_dir() / name
+    temporary = path.with_name(path.name + ".tmp")
+    with as_real_user():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                     0o600 if private else 0o644)
+        with os.fdopen(fd, "w") as file:
+            if private:
+                os.fchmod(file.fileno(), 0o600)
+            file.write(json.dumps(data, indent=1))
+        os.replace(temporary, path)   # replaces a symlink itself, never its target
 
 
 def load_keys(name=DEFAULT_LAMP):
@@ -73,8 +102,13 @@ def load_keys(name=DEFAULT_LAMP):
             bytes.fromhex(keys["dst"]))
 
 
+SEQ_MAX = 0xFFFF   # the frame carries the sequence in 2 bytes
+
+
 def next_seq(count):
     seq = read_json("seq.json", {}).get("seq", 1000)
+    if seq + count > SEQ_MAX:
+        raise RuntimeError("sequence counter used up (65535 commands): see docs/limits.md")
     write_json("seq.json", {"seq": seq + count})
     return seq
 
@@ -93,6 +127,8 @@ def payloads(cmd, arg, state):
     if cmd in ("on", "off"):
         state["on"] = cmd == "on"
         return [p2.ON if state["on"] else p2.OFF]
+    if cmd in ("bright", "temp") and arg is None:
+        raise ValueError(f"{cmd} needs a number")
     if cmd == "bright":
         state["bright"] = max(1, min(100, int(arg)))
         if state.get("mode") == "color":
@@ -125,6 +161,6 @@ def run(cmd, arg=None, radio=None, name=DEFAULT_LAMP):
     seq = next_seq(len(batch))
     ads = [p2.advertisement(p2.build_frame(SRC, dst, seq + i, p, local_key, beacon_key))
            for i, p in enumerate(batch)]
-    (radio or Radio(os.environ.get("TUYA_BEACON_ADAPTER", "hci0"))).advertise(ads)
+    (radio or Radio()).advertise(ads)
     write_json(lamp_file("state", name), state)
     return state

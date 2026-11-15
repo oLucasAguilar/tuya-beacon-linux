@@ -9,7 +9,7 @@ You are helping a person control a Bluetooth-only Tuya lamp from their Linux PC.
 ## 0. Check the machine
 
 - Linux with systemd, `python3 --version` 3.8 or newer.
-- A Bluetooth adapter: `ls /sys/class/bluetooth` shows `hci0`. Another `hciN`? Export `TUYA_BEACON_ADAPTER=hciN` for every command below.
+- A Bluetooth adapter: `ls /sys/class/bluetooth` shows `hci0`. Another `hciN`? Prefix every `sudo` command below with `env TUYA_BEACON_ADAPTER=hciN` (sudo drops exported variables), and see `docs/limits.md` for `lampd`.
 - The PC is in the same room as the lamp.
 - Ask which phone app the lamp is paired in, and name that app in every later step:
     - **Tuya** (Google Play: *Tuya - Smart Life, Smart Living*, by Tuya Smart Inc.) or **Smart Life**: go on.

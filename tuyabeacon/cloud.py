@@ -28,7 +28,7 @@ def account_keys(user_code, wait_seconds=240):
     code.print_ascii(out=sys.stdout, invert=True)
     print("Scan it with the same app where the lamp is paired (Tuya or Smart Life):")
     print("Me > scan icon (top corner), then confirm. The app may say 'Home Assistant':")
-    print("this tool borrows Home Assistant's Tuya login. It only reads the key and saves no login on this PC.",
+    print("this tool borrows Home Assistant's Tuya login. This code only reads the key and saves no login on this PC.",
           flush=True)
 
     deadline = time.time() + wait_seconds
