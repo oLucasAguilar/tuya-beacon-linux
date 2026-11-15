@@ -24,7 +24,10 @@
 - **One-way.** The lamp never answers. The menu shows the last command sent, not the real state: the wall switch or the app can change the lamp without the menu knowing.
 - **One lamp.** One lamp per setup for now.
     - Each lamp's files already live apart (`lamps/<name>/`), so a second one is interface work: [issue #1](https://github.com/oLucasAguilar/tuya-beacon-linux/issues/1).
-- **Root once.** `install.sh` gives `CAP_NET_RAW` and `CAP_NET_ADMIN` to the `lampd` service only. `lamp` and the menu run as you.
+- **Root once, and as little as possible.**
+    - `install.sh` copies the code to `/opt/tuya-beacon-linux`, owned by root, and runs `lampd` from there with `CAP_NET_RAW` only: enough for raw Bluetooth advertising, nothing over the rest of the network.
+    - `lamp` and the menu run as you, with no privilege.
+    - Changed the code (say, the DP numbers)? Run `sudo ./install.sh` again for `lampd` to use it.
 - **Re-pairing changes the key.** Pair the lamp again in the app, and repeat `capture` and `login`.
 - **The cloud, once.** `login` reads the lamp's key from your app account. After that, everything is local.
 - **"Home Assistant" on the phone.** Tuya only offers QR login to registered apps.

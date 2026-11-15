@@ -74,7 +74,7 @@ git clone https://github.com/oLucasAguilar/tuya-beacon-linux && cd tuya-beacon-l
     sudo ./install.sh --gnome     # `lamp` command + top-bar menu (GNOME)
     sudo ./install.sh             # `lamp` command only, any desktop
     ```
-    From now on, `lamp on` works without `sudo`. The menu appears after you log out and back in.
+    From now on, `lamp on` works without `sudo`. The menu appears after you log out and back in. How it stays safe: [docs/limits.md](docs/limits.md#by-design).
 
 QR login not working? Get the key on Tuya's developer website: [docs/local-key.md](docs/local-key.md).
 

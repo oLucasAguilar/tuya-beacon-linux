@@ -2,17 +2,30 @@
 # Installs the lampd service and the `lamp` command for the user who runs it with sudo.
 #   sudo ./install.sh            daemon + lamp command
 #   sudo ./install.sh --gnome    also the GNOME top-bar menu
+# The code is copied to /opt/tuya-beacon-linux, owned by root, because lampd runs it with
+# CAP_NET_RAW: code the user can edit must not run with that. After changing the code
+# here, run this again.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ] || [ -z "${SUDO_USER:-}" ]; then
     echo "Run it with sudo from your own user: sudo ./install.sh" >&2
     exit 1
 fi
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+SRC="$(cd "$(dirname "$0")" && pwd)"
+ROOT=/opt/tuya-beacon-linux
 USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
 
+if [ -d "$ROOT" ]; then
+    rm -r --one-file-system "$ROOT"
+fi
+install -d -m 755 -o root -g root "$ROOT"
+cp -r "$SRC/bin" "$SRC/tuyabeacon" "$SRC/gnome" "$ROOT/"
+find "$ROOT" -name __pycache__ -prune -exec rm -r {} +
+chown -R root:root "$ROOT"
+chmod -R u=rwX,go=rX "$ROOT"
+
 sed -e "s|@USER@|$SUDO_USER|g" -e "s|@ROOT@|$ROOT|g" \
-    "$ROOT/systemd/lampd.service" > /etc/systemd/system/lampd.service
+    "$SRC/systemd/lampd.service" > /etc/systemd/system/lampd.service
 systemctl daemon-reload
 systemctl enable lampd
 systemctl restart lampd

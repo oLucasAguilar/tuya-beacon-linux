@@ -7,12 +7,17 @@ Wants=bluetooth.target
 Type=simple
 User=@USER@
 Group=@USER@
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+# Raw HCI advertising needs CAP_NET_RAW only (tested: CAP_NET_ADMIN is not needed).
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
 NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
 RuntimeDirectory=lampd
 RuntimeDirectoryMode=0750
-ExecStart=/usr/bin/python3 @ROOT@/bin/lampd
+# The code runs from a root-owned copy, and -I keeps Python from loading anything
+# the user could write (user site-packages, .pth files, PYTHON* variables).
+ExecStart=/usr/bin/python3 -I @ROOT@/bin/lampd
 Restart=on-failure
 RestartSec=2
 
