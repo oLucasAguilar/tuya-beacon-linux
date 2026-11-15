@@ -1,0 +1,7 @@
+{
+  "uuid": "tuya-beacon@tuya-beacon-linux",
+  "name": "Tuya Beacon lamp",
+  "description": "Top-bar menu for a Tuya Beacon (P2) lamp over Bluetooth: on/off, brightness, white temperature, colours. Talks to the lampd daemon from tuya-beacon-linux.",
+  "url": "https://github.com/oLucasAguilar/tuya-beacon-linux",
+  "shell-version": ["45", "46", "47", "48"]
+}

@@ -1,0 +1,10 @@
+.lamp-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.lamp-swatch:hover {
+    border: 2px solid white;
+}

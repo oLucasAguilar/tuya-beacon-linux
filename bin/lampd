@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Daemon: one command per connection on a unix socket, sent to the lamp.
+
+Runs as a systemd service with CAP_NET_RAW + CAP_NET_ADMIN only, so the
+`lamp` client and the GNOME extension never need sudo.
+"""
+import os
+import socket
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from tuyabeacon import lamp  # noqa: E402
+
+SOCK = os.environ.get("LAMPD_SOCK", "/run/lampd/lampd.sock")
+
+
+def handle(line):
+    parts = line.split()
+    if not parts:
+        return "error: empty command"
+    try:
+        lamp.run(parts[0], parts[1] if len(parts) > 1 else None)
+        return "ok " + " ".join(parts[:2])
+    except (ValueError, SystemExit, OSError, RuntimeError) as error:
+        return f"error: {error}"
+
+
+def main():
+    if os.path.exists(SOCK):
+        os.unlink(SOCK)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(SOCK)
+    os.chmod(SOCK, 0o660)
+    server.listen(8)
+    print("lampd listening on", SOCK, flush=True)
+    while True:
+        conn, _ = server.accept()
+        with conn:
+            reply = handle(conn.recv(256).decode("utf-8", "replace"))
+            print(reply, flush=True)
+            try:
+                conn.sendall((reply + "\n").encode())
+            except OSError:
+                pass
+
+
+if __name__ == "__main__":
+    main()

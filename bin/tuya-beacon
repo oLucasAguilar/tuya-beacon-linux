@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Setup and direct control of a Tuya Beacon (P2) lamp. Needs sudo (raw Bluetooth).
+
+  sudo tuya-beacon capture [seconds]   listen while you turn the lamp OFF and ON in the phone app
+  tuya-beacon login [user code]        read the localKey from your app account by QR code
+  tuya-beacon derive [localKey]        recover the beaconKey from the capture (login does it for you)
+  sudo tuya-beacon sniff [seconds]     decode what the phone app sends (to map other models)
+  sudo tuya-beacon <command>           send directly, without the daemon
+"""
+import importlib
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from tuyabeacon import lamp, p2  # noqa: E402
+from tuyabeacon.crypto import crc8  # noqa: E402
+from tuyabeacon.radio import Radio  # noqa: E402
+
+CRC_ON, CRC_OFF = crc8(p2.ON.ljust(16, b"\0")), crc8(p2.OFF.ljust(16, b"\0"))
+
+
+def capture(seconds):
+    found = {}
+    print(f"Listening for {seconds}s. In the phone app, turn the lamp OFF, then ON.", flush=True)
+    for data in Radio().scan(seconds):
+        frame = p2.find_frame(data)
+        if not frame or frame[0] != 0x0B or frame[7] != p2.SET_DPS:
+            continue
+        kind = {CRC_ON: "on", CRC_OFF: "off"}.get(frame[8])
+        if kind and kind not in found:
+            found[kind] = frame.hex()
+            print(f"  got {kind.upper()} for node {frame[3:5].hex()}", flush=True)
+        if len(found) == 2:
+            break
+    if len(found) < 2:
+        sys.exit("Did not hear both OFF and ON. Keep the phone and the lamp close to this PC and retry.")
+    lamp.write_json("capture.json", found)
+    print(f"Saved. Next, without sudo: {Path(__file__).resolve()} login")
+
+
+def beacon_key_for(local_key_text, found):
+    """The beaconKey if this localKey explains both captured frames, else None."""
+    local_key = p2.key_from_string(local_key_text)
+    on, off = bytes.fromhex(found["on"]), bytes.fromhex(found["off"])
+    key_on = p2.recover_beacon_key(on, p2.ON, local_key)
+    if key_on != p2.recover_beacon_key(off, p2.OFF, local_key):
+        return None
+    return key_on if p2.parse_frame(on, local_key, key_on) else None
+
+
+def save_keys(local_key_text, beacon_key, found):
+    node = found["on"][6:10]
+    lamp.write_json("keys.json", {"localkey": local_key_text, "beaconkey": beacon_key.hex(),
+                                  "dst": node}, private=True)
+    print(f"beaconKey recovered and checked on two frames. Lamp node: {node}.")
+    print(f"Try it: sudo {Path(__file__).resolve()} off")
+
+
+def derive(local_key_text=None):
+    found = lamp.read_json("capture.json")
+    if not found:
+        sys.exit("No capture yet: run `sudo tuya-beacon capture` first.")
+    local_key_text = local_key_text or (lamp.read_json("localkey.json") or {}).get("localkey")
+    if not local_key_text:
+        sys.exit("No localKey yet: run `tuya-beacon login`, or pass it: tuya-beacon derive <localKey>")
+    beacon_key = beacon_key_for(local_key_text, found)
+    if not beacon_key:
+        sys.exit("The two frames disagree: this localKey is not the lamp's. "
+                 "Was the lamp paired again after you got the key?")
+    save_keys(local_key_text, beacon_key, found)
+
+
+SDK_VENV = Path.home() / ".cache" / "tuya-beacon-linux" / "venv"
+SDK_PACKAGES = ["tuya-device-sharing-sdk", "cryptography", "qrcode"]   # the SDK does not declare cryptography
+
+
+def ensure_sdk(args):
+    """The QR login needs Tuya's SDK; keep it in its own venv, installed only on request."""
+    try:
+        import qrcode  # noqa: F401
+        import tuya_sharing  # noqa: F401  (also imports cryptography)
+        return
+    except ImportError as error:
+        missing = error
+    python = SDK_VENV / "bin" / "python"
+    in_venv = os.environ.get("TUYA_BEACON_IN_VENV") == "1"
+    if in_venv or not python.exists():
+        if not in_venv:
+            print("The QR login needs Tuya's official SDK and two helpers, from PyPI: " + ", ".join(SDK_PACKAGES))
+            if input(f"Install them into {SDK_VENV}? [y/N] ").strip().lower() != "y":
+                sys.exit("Not installed. Without it, get the key on Tuya's website: docs/local-key.md")
+            try:
+                subprocess.run([sys.executable, "-m", "venv", str(SDK_VENV)], check=True)
+            except (subprocess.CalledProcessError, OSError):
+                sys.exit("Could not create the venv. On Debian/Ubuntu: sudo apt install python3-venv")
+        print("Installing...", flush=True)
+        if subprocess.run([str(python), "-m", "pip", "install", "--disable-pip-version-check",
+                           *SDK_PACKAGES]).returncode != 0:
+            sys.exit("pip could not install the SDK (see above). Website route: docs/local-key.md")
+        if in_venv:   # installed into this very interpreter: try once more, never loop
+            importlib.invalidate_caches()
+            try:
+                import qrcode  # noqa: F401,F811
+                import tuya_sharing  # noqa: F401,F811
+                return
+            except ImportError:
+                sys.exit(f"The SDK is still missing a module ({missing}). Website route: docs/local-key.md")
+    os.environ["TUYA_BEACON_IN_VENV"] = "1"
+    os.execv(str(python), [str(python), str(Path(__file__).resolve()), *args])
+
+
+def login(user_code):
+    if os.geteuid() == 0:
+        sys.exit("Run login without sudo.")
+    from tuyabeacon import cloud
+    if not user_code:
+        print("This reads the lamp's key from your account in the app where the lamp is paired:")
+        print("the Tuya app or the Smart Life app. In that app: Me > Settings > Account and Security > User Code.")
+        user_code = input("User code: ")
+    keys = cloud.account_keys(user_code.strip())
+    if not keys:
+        sys.exit("Tuya returned no device key for this account. Try the website route: docs/local-key.md")
+    found = lamp.read_json("capture.json")
+    if found:
+        for name, _, local_key_text in keys:
+            beacon_key = beacon_key_for(local_key_text, found)
+            if beacon_key:
+                print(f"The capture matches '{name}'.")
+                save_keys(local_key_text, beacon_key, found)
+                return
+        sys.exit(f"None of the {len(keys)} keys in this account matches the capture. "
+                 "Was the lamp paired again? Redo: sudo tuya-beacon capture, then login.")
+    for number, (name, category, _) in enumerate(keys, 1):
+        print(f"  {number}. {name} ({category})")
+    choice = 1 if len(keys) == 1 else int(input("Which one is the lamp? "))
+    lamp.write_json("localkey.json", {"localkey": keys[choice - 1][2]}, private=True)
+    me = Path(__file__).resolve()
+    print(f"Key saved. Next: sudo {me} capture, then {me} derive")
+
+
+def sniff(seconds):
+    local_key, beacon_key, _ = lamp.load_keys()
+    print(f"Listening for {seconds}s. Use the phone app now.", flush=True)
+    seen = set()
+    for data in Radio().scan(seconds):
+        frame = p2.find_frame(data)
+        decoded = frame and p2.parse_frame(frame, local_key, beacon_key)
+        if not decoded:
+            continue
+        dps = p2.dp_parse(decoded["payload"])
+        key = (decoded["src"], tuple((d, v) for d, _, v in dps))
+        if key not in seen:
+            seen.add(key)
+            print("  " + "  ".join(f"DP{d}={v.hex()}" for d, _, v in dps), flush=True)
+
+
+def main(args):
+    if not args or args[0] in ("-h", "--help"):
+        print(__doc__ + "\ncommands: " + lamp.USAGE)
+        return
+    cmd, rest = args[0], args[1:]
+    if cmd == "capture":
+        capture(int(rest[0]) if rest else 60)
+    elif cmd == "derive":
+        derive(rest[0] if rest else None)
+    elif cmd == "login":
+        ensure_sdk(args)
+        login(rest[0] if rest else None)
+    elif cmd == "sniff":
+        sniff(int(rest[0]) if rest else 30)
+    else:
+        lamp.run(cmd, rest[0] if rest else None)
+        print("ok", cmd, *rest[:1])
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except PermissionError:
+        sys.exit("Bluetooth needs root here: run it with sudo.")
+    except (OSError, TimeoutError, RuntimeError) as error:
+        sys.exit(f"Bluetooth error: {error}\nIs Bluetooth turned on? (Settings > Bluetooth, or: bluetoothctl power on)")
